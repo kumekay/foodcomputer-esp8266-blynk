@@ -14,3 +14,7 @@
 #ifndef BLYNK_SERVER
 #define BLYNK_SERVER "blynk-cloud.com"
 #endif
+
+#ifndef FW_UPDATE_URL
+#define FW_UPDATE_URL "http://romfrom.space/update"
+#endif
