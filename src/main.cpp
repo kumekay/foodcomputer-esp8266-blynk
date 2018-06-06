@@ -17,8 +17,8 @@
 #define DEBUG_SERIAL Serial
 
 // Use I2C
-#define I2C_SDA D6 // Yellow
-#define I2C_SCL D7 // White
+#define I2C_SDA D7 // Yellow
+#define I2C_SCL D6 // White
 
 // Config
 const uint16_t blynk_port{8442};
@@ -32,12 +32,9 @@ Ticker wateringStateChecker;
 
 // Power output
 const uint8_t configPins[]{D3, D4};
-uint8_t lightingPin{D1};
-uint8_t wateringPin{D2};
-
-uint32_t wateringDuration[2][2]{1000};
-unsigned long wateringPhaseStartTime{0};
-bool wateringState{LOW};
+uint8_t out1Pin{D1};
+uint8_t out2Pin{D2};
+uint8_t lightingPin{D0};
 
 // Humidity and temperature
 SI7021 si7021;
@@ -46,8 +43,6 @@ SI7021 si7021;
 OneWire ow(D5);
 DallasTemperature ds(&ow);
 DeviceAddress waterTemperatureAddr;
-
-WidgetLED wateringLED(V7);
 
 void setSendDataFlag()
 {
@@ -79,35 +74,6 @@ void sendData()
         DEBUG_SERIAL.print("Water Temperature: ");
         DEBUG_SERIAL.println(waterTemperature);
         shouldSendData = false;
-}
-
-void setWateringFlag()
-
-{
-        shouldCheckWatering = true;
-}
-
-void updateWateringState()
-{
-        bool lightingState{0}; // 1 - Day ; 0 - Night
-        uint32_t phaseDuration{0};
-
-        lightingState = digitalRead(lightingPin);
-        wateringState = digitalRead(wateringPin);
-
-        phaseDuration = wateringDuration[lightingState][wateringState];
-
-        unsigned long currentTime = millis();
-        if ((currentTime < wateringPhaseStartTime) || (wateringPhaseStartTime + phaseDuration <= currentTime))
-        {
-                wateringState = !wateringState;
-                digitalWrite(wateringPin, wateringState);
-                wateringPhaseStartTime = currentTime;
-                wateringState ? wateringLED.on() : wateringLED.off();
-                DEBUG_SERIAL.println("Switching watering. Day " + String(lightingState) + " Watering " + String(wateringState));
-        }
-
-        shouldCheckWatering = false;
 }
 
 void scanI2C()
@@ -177,10 +143,12 @@ void setup()
                 pinMode(configPins[i], OUTPUT);
                 digitalWrite(configPins[i], HIGH);
         }
+        pinMode(out1Pin, OUTPUT);
+        digitalWrite(out1Pin, LOW);
+        pinMode(out2Pin, OUTPUT);
+        digitalWrite(out2Pin, LOW);
         pinMode(lightingPin, OUTPUT);
-        digitalWrite(lightingPin, LOW);
-        pinMode(wateringPin, OUTPUT);
-        digitalWrite(wateringPin, LOW);
+        digitalWrite(lightingPin, HIGH);
 
         // Init sensors
         if (!ds.getAddress(waterTemperatureAddr, 0))
@@ -193,21 +161,13 @@ void setup()
                 DEBUG_SERIAL.println("SI7021 not found");
         }
 
-        // Timers
-        wateringPhaseStartTime = millis();
+        // Timers;
         dataSender.attach(5.0, setSendDataFlag);
-        wateringStateChecker.attach_ms(100, setWateringFlag);
 }
 
 void loop()
 {
         Blynk.run();
-
-        if (shouldCheckWatering)
-        {
-                updateWateringState();
-        }
-
         if (shouldSendData)
         {
                 sendData();
@@ -218,34 +178,6 @@ void loop()
 BLYNK_CONNECTED()
 {
         Blynk.syncAll();
-}
-
-// Day - ON duration
-BLYNK_WRITE(V10)
-{
-        wateringDuration[1][1] = param.asInt() * 100;
-        DEBUG_SERIAL.println("Update Day - ON duration: " + String(wateringDuration[0][0]));
-}
-
-// Day - OFF duration
-BLYNK_WRITE(V11)
-{
-        wateringDuration[1][0] = param.asInt() * 100;
-        DEBUG_SERIAL.println("Update  Day - OFF duration : " + String(wateringDuration[0][1]));
-}
-
-// Night - ON duration
-BLYNK_WRITE(V12)
-{
-        wateringDuration[0][1] = param.asInt() * 100;
-        DEBUG_SERIAL.println("Update  Night - ON duration: " + String(wateringDuration[1][0]));
-}
-
-// Night - OFF duration
-BLYNK_WRITE(V13)
-{
-        wateringDuration[0][0] = param.asInt() * 100;
-        DEBUG_SERIAL.println("Update Night - OFF duration: " + String(wateringDuration[1][1]));
 }
 
 // Update FW
@@ -274,4 +206,9 @@ BLYNK_WRITE(V22)
                         break;
                 }
         }
+}
+
+BLYNK_WRITE(V10)
+{
+        analogWrite(lightingPin, param.asInt());
 }
