@@ -1,4 +1,4 @@
-# Minimal firmware for blynk based esp8266 devices
+# Food computer
 
 To use copy `src/credentials_example.h` to `src/credentials.h` and put your data to the file
 
